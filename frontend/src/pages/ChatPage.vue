@@ -191,9 +191,27 @@ const { connectUnreadInbox, disconnectUnreadInbox } = useUnreadInbox({
 
 const wsConnected = computed(() => wsStatus.value === 'open');
 const activeRoomSubtitle = computed(() => roomSubtitle(activeRoom.value, wsConnected.value));
-const canModerateMessages = computed(
-  () => Boolean(activeRoom.value?.kind !== 'dm' && canManageActiveRoom.value)
-);
+
+const canModerateMessages = computed(() => {
+  const room = activeRoom.value;
+
+  if (!room || room.kind === 'dm') {
+    return false;
+  }
+
+  // 普通群组：群主可以删除
+  if (canManageActiveRoom.value) {
+    return true;
+  }
+
+  // general 系统群组：允许超级管理员删除
+  return Boolean(
+    room.isGeneral === true &&
+    room.kind === 'public' &&
+    session.value?.isAdmin === true
+  );
+});
+
 const canPinMessages = computed(
   () => Boolean(activeRoom.value?.kind !== 'dm' && canManageActiveRoom.value)
 );
