@@ -115,22 +115,37 @@ export async function authorizeChannelManagement(db, principal, channelId) {
 	return { ok: true, channel, membership, identity };
 }
 
-export async function authorizeMessageModeration(db, principal, kind, roomId) {
-	const access = await authorizeRoom(db, principal, kind, roomId);
-	if (!access.ok) {
-		return access;
-	}
-	if (access.room.kind === "dm") {
-		return { ok: false, reason: ROOM_ACCESS_FAILURE.FORBIDDEN };
-	}
 
-	const membership = await getChannelMembership(
-		db,
-		access.room.id,
-		access.identity.userId,
-	);
-	if (membership?.role !== "owner") {
-		return { ok: false, reason: ROOM_ACCESS_FAILURE.FORBIDDEN };
-	}
-	return { ...access, membership };
+export async function authorizeMessageModeration(db, principal, kind, roomId) {
+    const access = await authorizeRoom(db, principal, kind, roomId);
+    if (!access.ok) {
+        return access;
+    }
+
+    // 私信不允许通过群消息管理功能删除
+    if (access.room.kind === "dm") {
+        return { ok: false, reason: ROOM_ACCESS_FAILURE.FORBIDDEN };
+    }
+
+    // 允许超级管理员删除 general 系统群组中的任何消息
+    if (
+        access.room.name === "general" &&
+        access.room.kind === "public" &&
+        principal?.isAdmin === true
+    ) {
+        return access;
+    }
+
+    // 其他群组仍然只有群主有删除权限
+    const membership = await getChannelMembership(
+        db,
+        access.room.id,
+        access.identity.userId,
+    );
+
+    if (membership?.role !== "owner") {
+        return { ok: false, reason: ROOM_ACCESS_FAILURE.FORBIDDEN };
+    }
+
+    return { ...access, membership };
 }
